@@ -1,0 +1,137 @@
+#!/usr/bin/env ruby
+
+# Init
+require 'fileutils'
+require 'pathname'
+require 'optparse'
+#include FileUtils
+paramj = paramr = nil
+
+
+# Option parser
+options = {}
+OptionParser.new do |o|
+  o.on('-j jpeg path') { |p| paramj = p }
+  o.on('-r raw path') { |p| paramr = p }
+  o.on('-h') { puts o; exit }
+  o.parse!
+end
+
+# Params
+if paramj.nil? || paramr.nil?
+  puts "quitting: please specify paths"
+  exit
+end
+path_jpeg = Pathname.new(paramj).realpath
+path_raw = Pathname.new(paramr).realpath
+
+unless Dir.exists? path_jpeg
+  puts "quitting: jpeg_path does not exist"
+  exit
+end
+unless Dir.exists? path_raw
+  puts "quitting: raws_path does not exist"
+  exit
+end
+
+# Methods
+def ls_in path
+  list = {}
+  Dir["#{path}/*"].each do |file|
+    next if File.directory? file
+    key = File.basename(file, File.extname(file))
+    list[key] = file
+  end
+  return list
+end
+
+# Core
+
+# Collect JPEG filenames stripping extension
+jpegs = ls_in path_jpeg
+puts "JPEG: #{jpegs.size} files in: #{path_jpeg}" 
+
+raws = ls_in path_raw
+puts "RAWS: #{raws.size} files in: #{path_raw}" 
+
+puts
+
+# Do differences
+missing_raws = jpegs.keys - raws.keys
+if missing_raws.empty?
+  puts "> no missing file in RAW" 
+else
+  puts "> missing files in RAW :"
+  puts missing_raws.join(', ')
+end
+
+missing_jpegs = raws.keys - jpegs.keys
+if missing_jpegs.empty?
+  puts "> no missing files in JPEG" 
+else
+  puts "> missing files in JPEG :"
+  puts missing_jpegs.join(', ')
+
+  path_trash = "#{path_raw}/trash"
+  puts "moving extra RAWS to TRASH"
+  puts "> mkdir #{path_trash}" 
+  FileUtils.mkdir(path_trash)
+  missing_jpegs.each do |key|
+    filename = raws[key]
+    puts "> mv #{key}: #{filename}"
+    FileUtils.mv(filename, path_trash)
+  end
+end
+
+#FileUtils.mkdir(path_trash)
+
+
+#result = `which #{name}`
+#%x{ }
+
+# result = system 'cp', '/full/path/to/my_file', '/target/directory'
+# if result.nil?
+#   puts "Error was #{$?}"
+# elsif result
+#   puts "You made it!"
+# end
+
+# Dir['*.rb'] #basic globs
+# Dir['**/*.rb'] #** == any depth of directory, including current dir.
+# #=> array of relative names
+# 
+# File.expand_path('~/file.txt') #=> "/User/mat/file.txt"
+# File.dirname('dir/file.txt') #=> 'dir'
+# File.basename('dir/file.txt') #=> 'file.txt'
+# File.join('a', 'bunch', 'of', 'strings') #=> 'a/bunch/of/strings'
+# 
+# 
+# cd(dir, options)
+# cd(dir, options) {|dir| .... }
+# pwd()
+# mkdir(dir, options)
+# mkdir(list, options)
+# mkdir_p(dir, options)
+# mkdir_p(list, options)
+# rmdir(dir, options)
+# rmdir(list, options)
+# ln(old, new, options)
+# ln(list, destdir, options)
+# ln_s(old, new, options)
+# ln_s(list, destdir, options)
+# ln_sf(src, dest, options)
+# cp(src, dest, options)
+# cp(list, dir, options)
+# cp_r(src, dest, options)
+# cp_r(list, dir, options)
+# mv(src, dest, options)
+# mv(list, dir, options)
+# rm(list, options)
+# rm_r(list, options)
+# rm_rf(list, options)
+# install(src, dest, mode = <src's>, options)
+# chmod(mode, list, options)
+# chmod_R(mode, list, options)
+# chown(user, group, list, options)
+# chown_R(user, group, list, options)
+# touch(list, options)

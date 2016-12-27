@@ -1,0 +1,70 @@
+#!/bin/sh
+
+##
+## Idée de feature: apellé sans "group", ne fait que les update rsync => utile pour
+##    sync régulièrement et alléger le snapshot
+##
+#set -x
+
+# Global config
+BACKUPDIR="/volume1/backup/autobackup/"
+RSYNC_OPT="--links --times --recursive --delete --hard-links --chmod=g+rw --exclude '.svn' --delete-excluded"
+RSYNC_VERBOSE=0
+RSYNC_COMPRESS=1
+RSYNC_BWLIMIT=0
+
+MYSQL_OPT="-e --lock-tables --complete-insert --extended-insert --hex-blob "
+
+MYSQL_REMOTE_TEMPFILE="/tmp/mysqldump.sql.tmp"
+LOGFILE="$BACKUPDIR/backup.log"
+
+# Basic startup
+. $(dirname $0)/autobackup.inc
+group="$1"
+dfull=$(date +%Y%m%d-%H%M%S)
+dyear=$(date +%Y)
+dmonth=$(date +%m\ %B)
+dday=$(date +%d\ %A)
+if [ -z "$group" ] ; then
+	terminate "must specify group name"
+	exit
+fi
+
+# Define the file creation mask to rw-rw----
+umask 007
+
+
+# backup_rsync bob.etc bob::etc
+# exit 0
+
+# ESXi datastore
+#backup_rsync chum.esxi rsync://chum.bmconseil.com/ds
+#exit 0
+
+# SVN & GIT marlin -> bubbles
+backup_rsync bubbles.git rsync://fo1.bmconseil.com:5061/git
+backup_rsync bloat.svn rsync://localhost/svn
+
+# mail without archives
+backup_rsync bubbles.mail-light rsync://fo1.bmconseil.com:5061/mail-light
+
+# nemo: config, /opt, photo
+#backup_rsync nemo.etc localhost::etc
+#backup_rsync nemo.opt localhost::opt
+#backup_rsync nemo.photo localhost::photo
+#backup_rsync nemo.raid localhost::raid
+
+# Configuration
+#backup_rsync marlin.etc marlin.bmconseil.com::etc
+#backup_rsync bubbles.etc rsync://pearl.bmconseil.com:8730/etc
+#backup_rsync crush.etc crush.bmconseil.com::etc
+
+# databases
+#backup_mysql crush.db backup@crush.bmconseil.com backup
+#backup_mysql marlin.db backup@marlin.bmconseil.com backup
+
+# mail archives
+backup_rsync bubbles.mail-arch rsync://fo1.bmconseil.com:5061/mail-arch
+
+# ESXi datastore
+backup_rsync chum.esxi rsync://chum.bmconseil.com/ds

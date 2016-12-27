@@ -1,0 +1,1 @@
+curl http://localhost:2003/monitor | python -mjson.tool

@@ -1,0 +1,58 @@
+#!/bin/sh
+set -er
+TASK=$1
+
+# Config
+LOCALDIR="/Users/bruno/cache/"
+EXTRA=""
+EXCLUDE_BASE="/Users/bruno/cache/exclude-"
+RSYNC="rsync --recursive --times --progress --links --hard-links --fuzzy --delete-before --iconv=UTF8-MAC,UTF-8 --exclude @eaDir --exclude '.git' --delete-excluded --itemize-changes"
+#RSYNC="rsync --recursive --times --progress --links --hard-links --fuzzy --delete-before --exclude @eaDir --exclude '.git' --delete-excluded"
+MODULE=$TASK
+
+# Do the job with defaults !
+LOCALPART="$TASK"
+#MODULE="$TASK"
+TARGET="${LOCALDIR}/${TASK}"
+
+case ${TASK} in
+	bsvn|bgit)
+		REMOTE="nemo::${TASK}"
+		;;
+
+	photo|debian|music|misc)
+		REMOTE="nemo::${TASK}"
+		;;
+
+	msvn|mgit)
+		REMOTE="marlin.bmconseil.com::${TASK}"
+		;;
+
+	#dmusic)
+	#	REMOTE="nemo::music"
+	#	TARGET="/Volumes/DESIRE-32GB/BRUNO/music-clean/"
+	#	;;
+
+	*)
+		echo "usage: `basename $0` {photo|misc|music|debian|bsvn|bgit|dmusic}"
+		exit 1
+		;;
+esac
+
+# Add exclude files if exists, WARNING: path and task name should be filename-safe
+#EXCLUDES=$(echo "$EXCLUDE_BASE$TASK" | sed -e "s/\ /\\\\\ /g")
+EXCLUDES="$EXCLUDE_BASE$TASK"
+if [ -f "$EXCLUDES" ]; then
+	EXTRA="$EXTRA --exclude-from $EXCLUDES"
+fi
+
+# Now, do the job!
+#set -x
+echo "####################################################"
+echo "Syncing <$TASK> = <$REMOTE::$MODULE> ..."
+echo "####################################################"
+#echo EXTRA: $EXTRA
+$RSYNC "${REMOTE}"/ "${TARGET}"/ $EXTRA
+echo "####################################################"
+echo "Done !"
+echo "####################################################"

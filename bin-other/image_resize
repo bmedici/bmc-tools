@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Initialize context
+suffix="resized"
+targetsize="$1x$1>"
+shift
+total=$#
+
+# Welcome
+echo
+echo "###################################";
+echo "# IMAGE PROCESSOR";
+echo "###################################";
+echo "# "
+echo "# number of files: $total";
+echo "# output size: $targetsize";
+echo "# "
+echo
+
+# Start processing
+while [[ -n "$1" ]]; do
+	percent=`expr 100 \* $current / $total`
+	sedfilter="s/^\(.*\)\.\([^\.]*\)$/\1.${suffix}.\2/"
+	temp="$1.temp"
+	target=`echo "$1" | sed -e "$sedfilter"`	
+
+	sourcename="`basename \"$1\"`"
+	targetname="`basename \"${target}\"`"
+
+	echo "* $sourcename => ${targetname} ($current/$total, $percent%)"
+
+	if [[ -f "$1" ]]; then
+		convert -resize "${targetsize}" "$1" "${temp}" > /dev/null || exit 1
+	  mv "$temp" "$target" || exit 1
+	fi
+
+	shift
+	let current=current+1
+done
+
+echo
+echo "All files have been processed.";
+echo

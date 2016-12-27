@@ -1,0 +1,1 @@
+osascript -e 'tell application "Finder" to set desktop picture to POSIX file "/Users/bruno/Documents/DOCS/wallpapers/01370_planetnewyork_2560x1600.jpg"'
