@@ -1,0 +1,206 @@
+#!/usr/bin/env ruby
+require 'rubygems'
+require 'mail'
+require 'pdfkit'
+require "i18n"
+require 'nokogiri'
+require 'json'
+
+MAX_DAYS_DIFF = 10
+I18n.enforce_available_locales = false
+
+
+PDFKit.configure do |config|
+  #config.wkhtmltopdf = '/path/to/wkhtmltopdf'
+  config.default_options = {
+    :page_size => 'A4',
+    :print_media_type => true,
+    :encoding=>"UTF-8",
+  }
+  # Use only if your external hostname is unavailable on the server.
+  config.verbose = false
+end
+
+def adjust_date_within date, daynumber, max
+  puts "find_next_within date:#{date.strftime('%Y%m%d')}, daynumber:#{daynumber}, max:#{max}"
+  date.upto(date + max.to_i) do |cur|
+    next unless cur.day == daynumber.to_i
+    puts "find_next_within matched: #{cur.strftime('%Y%m%d')}"
+    return cur
+  end
+  return date
+end
+
+ def normalize(str)
+   n = str.chars.downcase.strip.to_s
+   n.gsub!(/[Ã Ã¡Ã¢Ã£Ã¤Ã¥ÄÄ?]/u,    'a')
+   n.gsub!(/Ã¦/u,                  'ae')
+   n.gsub!(/[ÄÄ?]/u,                'd')
+   n.gsub!(/[Ã§Ä?ÄÄ?Ä?]/u,          'c')
+   n.gsub!(/[Ã¨Ã©ÃªÃ«Ä?Ä?Ä?Ä?Ä?]/u, 'e')
+   n.gsub!(/Æ?/u,                   'f')
+   n.gsub!(/[ÄÄ?Ä¡Ä£]/u,            'g')
+   n.gsub!(/[Ä¥Ä§]/,                'h')
+   n.gsub!(/[Ã¬Ã¬Ã­Ã®Ã¯Ä«Ä©Ä­]/u,     'i')
+   n.gsub!(/[Ä¯Ä±Ä³Äµ]/u,           'j')
+   n.gsub!(/[Ä·Ä¸]/u,               'k')
+   n.gsub!(/[Å?Ä¾ÄºÄ¼Å?]/u,         'l')
+   n.gsub!(/[Ã±Å?Å?Å?Å?Å?]/u,       'n')
+   n.gsub!(/[Ã²Ã³Ã´ÃµÃ¶Ã¸ÅÅ?ÅÅ]/u,  'o')
+   n.gsub!(/Å?/u,                  'oe')
+   n.gsub!(/Ä?/u,                   'q')
+   n.gsub!(/[Å?Å?Å?]/u,             'r')
+   n.gsub!(/[Å?Å¡Å?ÅÈ?]/u,          's')
+   n.gsub!(/[Å¥Å£Å§È?]/u,           't')
+   n.gsub!(/[Ã¹ÃºÃ»Ã¼Å«Å¯Å±Å­Å©Å³]/u,'u')
+   n.gsub!(/Åµ/u,                   'w')
+   n.gsub!(/[Ã½Ã¿Å·]/u,             'y')
+   n.gsub!(/[Å¾Å¼Åº]/u,             'z')
+   n.gsub!(/\s+/,                   ' ')
+   n.gsub!(/[^\sa-z0-9_-]/,          '')
+   n
+end
+
+def filename_from_ld ldjson
+  parts = []
+
+  # TGV Prefix
+  parts << 'TGV'
+
+  # puts "gare_dest: #{ldjson[:reservationFor][:arrivalStation][:name]}"
+  gare_dest = at ldjson, "reservationFor", "arrivalStation", "name"
+  # ][:arrivalStation][:name]
+  puts "gare_dest: #{gare_dest}"
+  parts << gare_dest.downcase.capitalize
+
+  # Ajout de la date en prefixe
+  #final = adjust_date_within mail.date, jour.to_i, MAX_DAYS_DIFF
+
+  # Fallback name
+  #parts << oid if parts.empty?
+
+  # Composition
+  #parts.unshift final.strftime('%Y%m%d')
+  return I18n.transliterate parts.join(' ')
+end
+
+# def filename mail, html
+#   parts = []
+
+#   # Date du mail
+
+#   # Hash du corps
+#   oid = mail.object_id
+#   subject = mail.subject
+
+#   # Confirmation SNCF
+#   if mail.subject.include? 'Confirmation pour votre voyage'
+#     # TGV Prefix
+#     parts << 'TGV'
+
+#     # Destinations et journee
+#     if m = /voyage([^-]+)\-([^,]+),/i.match(subject)
+#       parts << m[2].strip.capitalize
+#     end
+
+#     # Numero de dossier
+#     if m = /dossier : ([A-Z0-9]+)/i.match(html)
+#       parts << m[1].strip
+#     end
+
+#     # Nom du jour
+#     if m = /aller le ([0-9]+) ([^\.]+)/i.match(subject)
+#       jour = m[1].strip
+#       mois = m[2].strip
+#       # parts << "- #{jour} #{mois[0..2]}"
+#       parts << "- #{jour} #{mois}"
+#     end
+#   end
+
+#   # Ajout de la date en prefixe
+#   final = adjust_date_within mail.date, jour.to_i, MAX_DAYS_DIFF
+
+#   # Composition
+#   #parts << oid
+#   parts.unshift final.strftime('%Y%m%d')
+#   return I18n.transliterate parts.join(' ')
+# end
+
+
+def process message
+  # Parse the message
+  mail = Mail.read_from_string message
+  abort "ABORTING: FAILED TO PARSE EMAIL" if mail.nil? || mail.html_part.nil?
+  #html = mail.html_part.body.to_s
+  html = mail.html_part.body.decoded
+
+  # Extract HTML part
+  puts "  subject: #{mail.subject}"
+  puts "  from: #{mail.from}"
+  #html = mail.html_part.body.to_s
+
+  puts "  declared encoding: #{html.encoding}"
+  #html.force_encoding(Encoding::ISO_8859_1)
+  html.force_encoding(Encoding::UTF_8)
+  # html.encode!(Encoding::UTF_8)
+  puts "  new encoding: #{html.encoding}"
+  # html = mail.html_part.body.to_s.encode(Encoding::ISO_8859_1, Encoding::UTF_8)
+  # html = mail.html_part.body.to_s.encode(Encoding::UTF_8)
+  # html = mail.html_part.body.to_s.encode("ISO-8859-1", "utf-8")
+  puts "  html: #{(html.size/1024).round} kB"
+
+  # Extract LD JSON
+  ldjson = extract_ld_json(html)
+  puts "  ld-json: #{ldjson.keys.inspect}"
+  puts "  ld-json: #{ldjson.to_yaml}"
+
+  # Build filename and PDF output
+  if ldjson.is_a? Hash
+    # Infos du HTML
+    basename = filename_from_ld ldjson
+  else
+    # Hash du corps
+    basename = mail.object_id
+  end
+
+  #basename = filename mail, html
+  puts "  basename: #{basename}"
+  #pdf = WickedPdf.new.pdf_from_string(html)
+
+  kit = PDFKit.new html
+
+  # Write both components
+  #File.write "#{basename}.html", html
+  kit.to_file "#{basename}.pdf"
+  #puts "  output: #{pdf_file} (#{(pdf.size/1024).round} kB)"
+end
+
+
+def extract_ld_json(html)
+  doc = Nokogiri::HTML(html)
+
+  # Find a LD+JSON block
+  script = doc.at('script[type="application/ld+json"]')
+  return nil unless script
+
+  # Parse it
+  return JSON.parse script.text
+end
+
+def at data, *path
+  path.reduce(data) { |m, key| m && m[key.to_s] }
+end
+
+
+# For each file found, process if
+Dir.glob('*.eml').each do |file|
+  puts "======================================================"
+  puts file
+  contents = IO.read file
+  process contents
+
+  #File.delete file
+  puts "removed file"
+  puts
+end
+

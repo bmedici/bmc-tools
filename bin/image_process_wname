@@ -1,0 +1,138 @@
+#!/bin/bash
+
+# Settings
+watermark_dir="/Users/bruno/Documents/BMPDOCS/divers"
+right_margin=0
+bottom_margin=10
+
+# Initialize context
+current=1
+percent=0
+framed=0
+format="$1"
+shift
+total=$#
+suffix="$format"
+
+# Set parameters for each format
+case $format in
+  "mini")
+    targetsize="400x400>"
+    watermark="$watermark_dir/watermark24.png"
+		framed=1
+    ;;
+  "web")
+    targetsize="800x600>"
+    watermark="$watermark_dir/watermark24.png"
+		framed=2
+    ;;
+  "www")
+    targetsize="1200x1200>"
+    #watermark="$watermark_dir/watermark24.png"
+		framed=0
+    ;;
+  "wwwp")
+    targetsize="x650>"
+    #watermark="$watermark_dir/watermark24.png"
+		framed=0
+    ;;
+  "pano")
+    targetsize="x650>"
+    watermark="$watermark_dir/watermark57.png"
+		framed=0
+    ;;
+  "big")
+    targetsize="1800x1800>"
+    watermark="$watermark_dir/watermark57.png"
+		framed=12
+    ;;
+  "bigf")
+    targetsize="1800x1800>"
+    suffix="bigf"
+		framed=12
+    watermark="$watermark_dir/watermark30.png"
+    ;;
+  "print")
+    targetsize="10000x10000>"
+    suffix="print"
+		framed=15
+    watermark="$watermark_dir/watermark90.png"
+    ;;
+  *)
+		echo "usage: `basename $0` {mini|web|big|bigf|www|pano|print} file1 file2 file3 ..."
+		exit 1
+		;;
+esac
+
+# Check presence of watermak file
+#if [[ ! -f "$watermark" ]]; then
+#  echo "quitting: missing watermark file: $watermark"
+#  exit 1
+#fi
+
+# Evaluate watermark offset according to frame value
+if [ $framed -gt 0 ]; then
+	right_margin=`expr ${right_margin} + ${framed}`
+	bottom_margin=`expr ${bottom_margin} + ${framed}`
+fi
+
+# Welcome
+echo
+echo "###################################";
+echo "# IMAGE PROCESSOR";
+echo "###################################";
+echo "# "
+echo "# number of files: $total";
+echo "# output format: $format";
+echo "# output size: $targetsize";
+echo "# file suffix: $suffix";
+echo "# "
+echo "# watermark: `basename \"$watermark\"`";
+echo "# right margin: $right_margin";
+echo "# bottom margin: $bottom_margin";
+echo "# output frame: $framed";
+echo "# "
+echo
+
+# Start processing
+while [[ -n "$1" ]]; do
+	percent=`expr 100 \* $current / $total`
+	sedfilter="s/^\(.*\)\.\([^\.]*\)$/\1.${suffix}.\2/"
+	temp="$1.temp"
+	target=`echo "$1" | sed -e "$sedfilter"`	
+
+	sourcename="`basename \"$1\"`"
+	targetname="`basename \"${target}\"`"
+
+	echo "* $sourcename => ${targetname} ($current/$total, $percent%)"
+
+	if [[ -f "$1" ]]; then
+		# Resize picture, add border, and calculate bottom and right offset according to frame value
+		if [ $framed -eq 0 ]; then
+			convert -resize "${targetsize}" "$1" "${temp}" > /dev/null || exit 1
+		else
+	  	convert -resize "${targetsize}" -frame "${framed}x${framed}+0+0" -mattecolor "#EEEEEE" "$1" "${temp}" > /dev/null || exit 1
+		fi
+		
+		# Tag picture with watermark
+		if [ -n "$watermark" ]; then
+		  composite -dissolve 40% -gravity SouthEast  -geometry "+${right_margin}+${bottom_margin}" "$watermark" "$temp" "$temp"  || exit 1
+		fi
+		
+		# Burn filename into the picture
+		convert "$temp" "$temp" -gravity SouthWest -background White -splice 0x18 -annotate +5+2 '$sourcename'
+	
+		# Rename to final filename
+	  mv "$temp" "$target" || exit 1
+		#if [ "$?" -ne "0" ] ; then
+	  #echo "   > FAILED"
+    #fi
+	fi
+
+	shift
+	let current=current+1
+done
+
+echo
+echo "All files have been processed.";
+echo

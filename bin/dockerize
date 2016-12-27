@@ -1,21 +1,26 @@
 #!/usr/bin/env ruby
 
-DOCKER_REPO = "bmconseil/dummy"
-
 # Try to load external libs, helpers and constants
 begin
+  LIB_DIR = File.expand_path(File.dirname(__FILE__) + "/../lib/")
   require "rubygems"
   require "optparse"
   require 'tempfile'
+  require "#{LIB_DIR}/constants"
+  require "#{LIB_DIR}/cli"
+  require "#{LIB_DIR}/git"
+  require "#{LIB_DIR}/docker"
 rescue LoadError => e
   raise "EXITING: some basic libs were not found (#{e.message})"
 end
+include Helpers
 
 
 # Some helpers
-def git_check_tag tag
-  system("git tag -l #{tag}")
+def output_lines popen
+  popen.read.lines.map(&:strip)
 end
+
 def run_cmd command, title
   puts "* #{title}"
   puts command
@@ -27,13 +32,15 @@ end
 # Handle configuration
 begin
   # Defaults
-  opt_tag     = nil
-  opt_latest  = false
-  opt_push    = false
+  opt_tag       = nil
+  opt_latest    = false
+  opt_push      = false
+  opt_list_tags = false
 
   # Parse options and check compliance
   parser = OptionParser.new do |opts|
     opts.banner = "Usage: #{File.basename $PROGRAM_NAME} [options] start|stop"
+    opts.on("",   "--tags", "List all available tags")        { |value| opt_list_tags = true  }
     opts.on("-t",   "--tag VERSION")                          { |value| opt_tag = value.to_s  }
     opts.on("-l",   "--latest", "Tag build with :latest")     { |value| opt_latest = true     }
     opts.on("-p",   "--push",   "Push the build(s)")          { |value| opt_push = true       }
@@ -52,17 +59,23 @@ rescue StandardError => e
 end
 
 
-# Check context
-unless opt_tag
-  puts "EXITING: params: missing tag"
+# Check tag validiy
+available_tags = Git.fetch_tags
+if opt_list_tags
+  end_with_tags = "please specify tag to build"
+elsif !opt_tag
+  end_with_tags = "please specify tag to build"
+elsif available_tags.include? opt_tag
+  end_with_tags = "the specified tag [#{opt_tag}] not found"
+else
+  end_with_tags = "all good"
+end
+if end_with_tags || true
+  puts "EXITING: tag: #{end_with_tags}"
+  Git.list_tags available_tags
   exit 1
 end
 
-# Check tag in git
-unless git_check_tag(opt_tag)
-  puts "EXITING: tag [#{opt_tag}] not found in git"
-  exit 1
-end
 
 # Prepare some context vars
 temp_archive    = "dockerize-archive-#{opt_tag}.tar"
@@ -70,10 +83,12 @@ release_name    = "#{DOCKER_REPO}:#{opt_tag}"
 release_latest  = "#{DOCKER_REPO}:latest"
 
 # Prepare commands
-cmd_build       = "docker build -f Dockerfile --build-arg CODE_ARCHIVE=\"#{temp_archive}\" . -t \"#{release_name}\""
-cmd_tag         = "docker tag \"#{release_name}\" \"#{release_latest}\""
-opt_push        = "docker push \"#{release_name}\""
-opt_push_latest = "docker push \"#{release_latest}\""
+cmd_archive     = Git.cmd_archive temp_archive, opt_tag
+cmd_build       = Docker.cmd_build temp_archive, release_name
+cmd_tag         = Docker.cmd_tag release_name, release_latest
+opt_push        = Docker.cmd_push release_name
+opt_push_latest = Docker.cmd_push release_latest
+
 
 # Config summary
 puts "--- DOCKERIZE CONFIG"
@@ -84,10 +99,7 @@ puts
 
 
 # Checkout tag code in temp archive
-run_cmd(
-  "Creating code archive",
-  "git archive --format=tar -o \"#{temp_archive}\" --prefix=/ #{opt_tag}"
-  )
+run_cmd cmd_archive, "Creating code archive"
 archive_size = File.size(temp_archive)
 puts "> archive size: #{archive_size}"
 
