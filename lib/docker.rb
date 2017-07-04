@@ -1,12 +1,12 @@
-module Helpers
+module BmcTools
   class Docker < Runner
     class << self
 
-      def cmd_build temp_archive, release_name
+      def docker_build temp_archive, release_name
         "docker build -f Dockerfile --build-arg CODE_ARCHIVE=\"#{temp_archive}\" . -t \"#{release_name}\""
       end
 
-      def cmd_tag from, to
+      def docker_tag from, to
         "docker tag \"#{from}\" \"#{to}\""
       end
 

@@ -1,4 +1,4 @@
-module Helpers
+module BmcTools
   class Runner
     class << self
 
@@ -12,6 +12,11 @@ module Helpers
         puts command
         system command
         puts
+      end
+
+      # Some helpers
+      def output_lines popen
+        popen.read.lines.map(&:strip)
       end
 
     end

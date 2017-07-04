@@ -1,4 +1,4 @@
-module Helpers
+module BmcTools
   class CLI
     class << self
 

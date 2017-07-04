@@ -6,84 +6,42 @@ begin
   require "rubygems"
   require "optparse"
   require 'tempfile'
-  require "#{LIB_DIR}/constants"
-  require "#{LIB_DIR}/cli"
+  # require "#{LIB_DIR}/cli"
+  require "#{LIB_DIR}/runner"
   require "#{LIB_DIR}/git"
   require "#{LIB_DIR}/docker"
+  require "#{LIB_DIR}/dockerize"
 rescue LoadError => e
   raise "EXITING: some basic libs were not found (#{e.message})"
 end
-include Helpers
+#include Bmctools
 
 
-# Some helpers
-def output_lines popen
-  popen.read.lines.map(&:strip)
-end
-
-def run_cmd command, title
-  puts "* #{title}"
-  puts command
-  system command
-  puts
-end
+DOCKER_REPO = "bmconseil/dummy"
 
 
-# Handle configuration
-begin
-  # Defaults
-  opt_tag       = nil
-  opt_latest    = false
-  opt_push      = false
-  opt_list_tags = false
-
-  # Parse options and check compliance
-  parser = OptionParser.new do |opts|
-    opts.banner = "Usage: #{File.basename $PROGRAM_NAME} [options] start|stop"
-    opts.on("",   "--tags", "List all available tags")        { |value| opt_list_tags = true  }
-    opts.on("-t",   "--tag VERSION")                          { |value| opt_tag = value.to_s  }
-    opts.on("-l",   "--latest", "Tag build with :latest")     { |value| opt_latest = true     }
-    opts.on("-p",   "--push",   "Push the build(s)")          { |value| opt_push = true       }
-    opts.on_tail("-h", "--help", "Show this message")  do
-      puts opts
-      exit
-    end
-
-  end
-  parser.order!(ARGV)
-
-rescue OptionParser::InvalidOption => e
-  abort "EXITING: InvalidOption: #{e.message}"
-rescue StandardError => e
-  abort "EXITING: StandardError: #{e.message}"
-end
+d = BmcTools::Dockerize.new
 
 
-# Check tag validiy
-available_tags = Git.fetch_tags
-if opt_list_tags
-  end_with_tags = "please specify tag to build"
-elsif !opt_tag
-  end_with_tags = "please specify tag to build"
-elsif available_tags.include? opt_tag
-  end_with_tags = "the specified tag [#{opt_tag}] not found"
-else
-  end_with_tags = "all good"
-end
-if end_with_tags || true
-  puts "EXITING: tag: #{end_with_tags}"
-  Git.list_tags available_tags
-  exit 1
-end
+# Config from command line
+d.config_from_command_line(ARGV)
+
+# Check options tag
+d.check_options_tag
+
+d.archive_tag
+
+exit 1
+
 
 
 # Prepare some context vars
-temp_archive    = "dockerize-archive-#{opt_tag}.tar"
+# temp_archive    = "dockerize-archive-#{opt_tag}.tar"
 release_name    = "#{DOCKER_REPO}:#{opt_tag}"
 release_latest  = "#{DOCKER_REPO}:latest"
 
 # Prepare commands
-cmd_archive     = Git.cmd_archive temp_archive, opt_tag
+# cmd_archive     = Git.cmd_archive temp_archive, opt_tag
 cmd_build       = Docker.cmd_build temp_archive, release_name
 cmd_tag         = Docker.cmd_tag release_name, release_latest
 opt_push        = Docker.cmd_push release_name
@@ -99,9 +57,6 @@ puts
 
 
 # Checkout tag code in temp archive
-run_cmd cmd_archive, "Creating code archive"
-archive_size = File.size(temp_archive)
-puts "> archive size: #{archive_size}"
 
 # Build docker image from that archive
 run_cmd cmd_build, "Building docker image"
