@@ -46,10 +46,11 @@ module BmcTools
     def config_from_command_line argv
       parser = OptionParser.new do |opts|
         opts.banner = "Usage: #{File.basename $PROGRAM_NAME} [options]"
-        opts.on("",   "--tags", "List all available tags")        { |value| @options[:list_tags] = true  }
-        opts.on("-t",   "--tag VERSION")                          { |value| @options[:tag] = value.to_s  }
-        opts.on("-l",   "--latest", "Tag build with :latest")     { |value| @options[:latest] = true     }
-        opts.on("-p",   "--push",   "Push the build(s)")          { |value| @options[:push] = true  }
+        opts.on("",   "--tags", "List all available tags")        { |value| @options[:list_tags] = true     }
+        opts.on("-t",   "--tag VERSION")                          { |value| @options[:tag] = value.to_s     }
+        opts.on("-l",   "--latest", "Tag build with :latest")     { |value| @options[:latest] = true        }
+        opts.on("-p",   "--push",   "Push the build(s)")          { |value| @options[:push] = true          }
+        opts.on("-p",   "--github",   "From Github repository")   { |value| @options[:github] = value.to_s  }
         opts.on_tail("-h", "--help", "Show this message")  do
           puts opts
           exit
@@ -95,6 +96,10 @@ module BmcTools
       # Build image
       log "build Docker release [#{@release}]"
       RunnableDocker.docker_build archive, @release
+
+      # Remove temp file
+      log "remove temp archive"
+      File.delete archive
 
       # Skip if no latest release to handle
       return unless @latest
@@ -143,7 +148,7 @@ module BmcTools
     end
 
     def temp_file_name
-      # return "/tmp/dockerize.tmp"
+      return "/tmp/dockerize-#{@app_name}-#{@options[:tag]}.tar"
       tempfile = Tempfile.new("dockerize-#{@app_name}-")
       filename = tempfile.path
       tempfile.close
